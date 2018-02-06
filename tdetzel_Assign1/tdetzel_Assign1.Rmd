@@ -1,0 +1,247 @@
+---
+title: 'IS 605 Homework Week One'
+author: "Tom Detzel, Feb. 2, 2018"
+output:
+  prettydoc::html_pretty:
+    theme: architect
+    highlight: github
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# load required packages
+
+suppressMessages(library(easypackages))
+
+suppressMessages(libraries("tidyverse", "pander", "MASS", "stats", "psych", "e1071", "pracma"))
+
+```
+
+
+## Problem set 1  
+  
+  
+*(1) Calculate the dot product u.v where u = [0.5; 0.5] and v = [3; −4]*
+
+**A.** Also known as the inner product or scalar product, the dot product of two vectors is given by the general formula:
+
+ **v \* u = v^1^, v^2^, ... v^n^ \* u^1^, u^2^, ... u^n^
+         = v^1^ \* u^1^ + v^2^ \* u^2^ ... + v^n^ \* u^n^**
+         
+The result is a scalar.
+
+In R, the operator for a dot product is %*%. Our answer using code is -0.5 as shown below.
+
+```{r}
+
+u <- c(0.5, 0.5)
+v <- c(3, -4)
+u%*%v
+
+```
+
+*(2) What are the lengths of u and v? Please note that the mathematical notion of the length of a vector is not the same as a computer science definition.*
+
+**A.** The length of a vector is called its *norm* and is computed as the nonnegative square root of the sum of the squares of the vector's components.
+
+The norm (length) of **u** is `r round(abs(sqrt(sum(u^2))),4)`. The norm of **v** is `r abs(sqrt(sum(v^2)))`.
+
+In base R, the length of a vector can be computed using the norm function (choosing the correct type parameter). Examples:
+
+```{r}
+norm(u, type="2")
+```
+```{r}
+norm(v, type="2")
+```
+
+*(3) What is the linear combination: 3u − 2v?*
+
+**A.** The linear combination is the result of multiplying scalars by each vector and adding the corresponding results.
+
+In this case, we multiply 3 by each element of vector **u** and -2 by each element of vector **v**. We then add the corresponding elements to get a new vector that is the linear combination.
+
+R code follows.
+
+```{r}
+
+linear_combo <- 3*u + (-5*v)
+linear_combo
+
+```
+
+*(4) What is the angle between u and v?*  
+  
+**A.** The angle $\theta$ between two vectors is computed as the dot product of the vectors divided by the product of their lengths. The *cos $\theta$* is a value between -1 and 1.
+
+*cos $\theta$* = **u \* v / ||u||\*||v||**
+
+R code follows:
+  
+```{r}
+
+angle <- u%*%v/(norm(u, type="2")*norm(v, type="2"))
+angle
+
+```
+  
+## Problem set 2
+
+*Set up a system of equations with 3 variables and 3 constraints and solve for x. Please write a function in R that will take two variables (matrix A & constraint vector b) and solve using elimination.*  
+  
+### 1 -- Prep the equation set  
+  
+```{r}
+
+# test matrix given from assignment
+#1  1 3    x1 = 1
+#2 −1 5    x2 = 2 (1)
+#−1 −2 4] [x3] = 6
+
+# create a simple three-variable matrix as given in assignment
+A <- matrix(c(1,1,3, 2,-1,5, -1,-2,4), nrow = 3, ncol = 3, byrow = TRUE)
+A
+# create constraint vector
+b <- c(1,2,6)
+b
+
+# test the matrix to be sure it's correct
+solve(A,b)
+
+```
+
+### 2 -- Write a function to solve 3X3 systems  
+  
+My solution requires loading the pracma package to compute a row-reduced echelon matrix from the augmented system matrix. I tried to program the RREF code myself but it was taking too long, so I punted on that part. You can see my unfinished scratch work in the appendix. 
+
+Here is my solve function:
+
+```{r}
+
+# function to solve a 3 equation, 3 variable linear system
+# assumes input is a 3x3 matrix and 1x3 constraints vector
+# requires library pracma
+
+my_solve <- function(A, b){
+            # check inputs and quit if wrong
+            stopifnot(is.matrix(A), 
+                      dim(A)==c(3,3),
+                      is.numeric(b),
+                      length(b)==3)
+            
+            # make augmented matrix from inputs
+            augA <- as.matrix(cbind(A,b))
+            dimnames(augA) <- NULL
+
+            # use pracma pkg to get row-reduced matrix
+            # NOTE: I spent hours trying to recreate this and ran out of time
+            reduced <- rref(augA)
+
+            # solve for the variables
+            x1 <- reduced[1,4] - reduced[1,2] - reduced[1,3]
+            x2 <- reduced[2,4] - reduced[2,3] 
+            x3 <- reduced[3,4]
+
+            # output the results
+            results <- c(x1, x2, x3)
+            return(results)
+}
+
+# call the function on our system
+my_solve(A,b)
+
+```
+
+Try with some other matrices.
+
+```{r}
+
+# from our text, p. 38
+A2 <- matrix(c(1,-1,2, 2,1,1, 1,1,0), nrow=3, ncol=3, byrow=T)
+b2 <- c(1,8,5)
+
+A3 <- matrix(c(1,2,2, 1,3,3, 2,6,5), nrow=3, ncol=3, byrow=T)
+b3 <- c(4,5,6)
+
+my_solve(A2, b2); my_solve(A3, b3)
+
+```
+  
+
+  
+### Appendix -- Scratch work FWIW
+  
+Cutting room floor coding from trying to recreate pracma's rref() function.
+
+```{r include=T, eval=F }
+
+# function to compute a row-reduced echelon form matrix using Gauss Jordan elimination and return solution for a three-equation, three-variable linear system
+
+# instantiate variables
+j <- 0              # vars count
+r <- 0              # pivot rows
+m <- dim(augM)[1]   # row count
+n <- dim(augM)[2]   # column count
+
+# step 1, order the rows
+rowlist <- augM
+
+# first set column index
+j <- j+1
+
+# internal function for second row operation to convert i,j to 1
+# used to get value for equation operation 2
+alpha <- function(x){
+ a <- 1/x
+ return(a)
+}
+
+# test for leading zero, reorder, then do row operation
+# later will add for(i in 1:length(m))
+
+if(j == n+1){
+  stop("All done.")
+} else {
+  if(augM[,j]==0){
+    j <- j+1
+  } else {
+    rowlist <- augM[order(augM[,j]),]
+    rowlist[1,] <- alpha(rowlist[1,j] * rowlist[1,])
+    j <- j +1
+  }
+}
+
+alpha(rowlist[1,j])
+
+augTest <- augM
+
+# stop if all columns in matrix are checked
+if(j == n+1){
+  stop("All done.")
+} else {
+  # if all values in j == 0, move to next column
+  if(unique(augTest[,j])==0){
+    j <- j+1
+  }
+} else {
+  # select a row in which j is not 0
+  # reorder the matrix by row j
+  augTest <- augTest[order(augTest[,j], decreasing=T),]
+  
+  # get index for top row
+  i <- augTest[which(augTest[,j]!=0)][1]
+  
+  # set index for row number
+  r <- r+1
+  
+  # swap the rows
+  augTest[c(r,i),] <- augTest[c(i,r),]
+  
+  # apply second row operation to make i,j==1
+  augTest[r,] < augTest[r,] * alpha(augTest[r,j])
+
+}
+
+```
+
